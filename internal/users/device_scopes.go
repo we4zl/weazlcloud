@@ -8,15 +8,17 @@ import (
 )
 
 const (
-	PhotosRead   = "photos:read"
-	PhotosWrite  = "photos:write"
-	FilesRead    = "files:read"
-	FilesWrite   = "files:write"
-	BackupWrite  = "backup:write"
-	GrabsRead    = "grabs:read"
-	GrabsWrite   = "grabs:write"
-	StorageRead  = "storage:read"
-	LegacyPhotos = "photos:v1"
+	PhotosRead     = "photos:read"
+	PhotosWrite    = "photos:write"
+	FilesRead      = "files:read"
+	FilesWrite     = "files:write"
+	BackupWrite    = "backup:write"
+	GrabsRead      = "grabs:read"
+	GrabsWrite     = "grabs:write"
+	StorageRead    = "storage:read"
+	DocumentsRead  = "documents:read"
+	DocumentsWrite = "documents:write"
+	LegacyPhotos   = "photos:v1"
 )
 
 var ErrInsufficientScope = errors.New("insufficient scope")
@@ -29,7 +31,7 @@ func normalizeScopes(scopes []string) ([]string, error) {
 	seen := map[string]bool{}
 	for _, v := range scopes {
 		switch v {
-		case PhotosRead, PhotosWrite, FilesRead, FilesWrite, BackupWrite, GrabsRead, GrabsWrite, StorageRead:
+		case PhotosRead, PhotosWrite, FilesRead, FilesWrite, BackupWrite, GrabsRead, GrabsWrite, StorageRead, DocumentsRead, DocumentsWrite:
 		default:
 			return nil, errors.New("unsupported device scope")
 		}
@@ -40,6 +42,9 @@ func normalizeScopes(scopes []string) ([]string, error) {
 	}
 	if seen[BackupWrite] && !seen[FilesWrite] {
 		return nil, errors.New("backup:write requires files:write")
+	}
+	if seen[DocumentsWrite] && !seen[DocumentsRead] {
+		return nil, errors.New("documents:write requires documents:read")
 	}
 	sort.Strings(out)
 	return out, nil
@@ -79,6 +84,10 @@ func grant(method, path string, legacy bool, scopes ...string) routeGrant {
 
 // Every route includes its method. Wildcards match exactly one nonempty segment.
 var deviceGrants = []routeGrant{
+	grant("GET", "/api/v1/documents", false, DocumentsRead),
+	grant("POST", "/api/v1/documents/folder", false, DocumentsWrite),
+	grant("PUT", "/api/v1/documents/content", false, DocumentsWrite),
+	grant("GET", "/api/v1/documents/content", false, DocumentsRead),
 	grant("POST", "/api/v1/photos/lookup", true, PhotosRead),
 	grant("GET", "/api/v1/photos", true, PhotosRead),
 	grant("GET", "/api/v1/photos/capabilities", true, PhotosRead),
