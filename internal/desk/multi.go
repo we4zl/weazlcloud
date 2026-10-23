@@ -9,7 +9,7 @@ import (
 )
 
 func (h *Handler) serveMulti(w http.ResponseWriter, r *http.Request) {
-	if h.rejectMobileContract(w, r) || h.tryMobileIdentity(w, r) || h.tryMobileParts(w, r) || h.tryMobileBackups(w, r) || h.tryMobileFiles(w, r) || h.tryGuardedMobileRoutes(w, r) {
+	if h.rejectMobileContract(w, r) || h.tryMobileDocuments(w, r) || h.tryMobileIdentity(w, r) || h.tryMobileParts(w, r) || h.tryMobileBackups(w, r) || h.tryMobileFiles(w, r) || h.tryGuardedMobileRoutes(w, r) {
 		return
 	}
 	switch {
