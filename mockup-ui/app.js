@@ -939,11 +939,13 @@ function refreshUploadSummary() {
 }
 
 function scheduleUploadRefresh() {
-  clearTimeout(uploadRefreshTimer);
-  uploadRefreshTimer = setTimeout(async () => {
-    if (!live) return;
-    try { await loadLibrary(); renderMain(); renderDeck(); } catch (err) { toast(err.message); }
-  }, 180);
+  // Upload completion and SSE describe the same change. Coalesce them without
+  // postponing updates indefinitely during a continuous stream of uploads.
+  if (uploadRefreshTimer) return;
+  uploadRefreshTimer = setTimeout(() => {
+    uploadRefreshTimer = null;
+    syncLibraryFromChange();
+  }, 750);
 }
 
 function uploadItemForSlot(slot) {
@@ -1502,6 +1504,53 @@ async function lockVault() {
 let libraryPageRequest = 0;
 let librarySearchTimer = 0;
 let libraryLoadController = null;
+function libraryQueryKey() {
+  return JSON.stringify([state.username,state.currentPath,state.librarySearch,state.libraryScope,state.libraryType,state.libraryDate,state.librarySize,state.librarySort,state.librarySortDir]);
+}
+
+async function refreshLibraryInBackground() {
+  // Foreground navigation/search/load-more always owns its request. Never
+  // empty the displayed page or abort navigation for an upload notification.
+  if (libraryLoadController || librarySearchTimer) return false;
+  const scope = libraryQueryKey(), request = ++libraryPageRequest;
+  const controller = new AbortController();
+  libraryLoadController = controller;
+  const wanted = Math.max(100, files.length);
+  const incoming = [];
+  let page, cursor = '';
+  const filtered = !!state.librarySearch.trim() || state.libraryType !== 'all' || state.libraryDate !== 'all' || state.librarySize !== 'all' || state.libraryScope !== 'all';
+  try {
+    do {
+      const options = {cursor, sort: state.librarySort, descending: state.librarySortDir === 'desc', signal: controller.signal};
+      page = filtered
+        ? await engine.searchLibraryPage({...options, query: state.librarySearch, scope: state.libraryScope === 'folder' ? state.currentPath : '', type: state.libraryType, date: state.libraryDate, size: state.librarySize})
+        : await engine.listLibraryPage(state.currentPath, options);
+      if (request !== libraryPageRequest || scope !== libraryQueryKey() || !state.unlocked || state.view !== 'library') return true;
+      incoming.push(...page.files);
+      cursor = page.next_cursor || '';
+    } while (cursor && incoming.length < wanted);
+    const changed = JSON.stringify(files) !== JSON.stringify(incoming) || state.libraryNextCursor !== cursor;
+    files.splice(0, files.length, ...incoming);
+    state.libraryCursor = state.libraryNextCursor = cursor;
+    state.libraryGeneration = page.generation || 0;
+    const selected = new Set(incoming.map(file => file.id));
+    const selectionChanged = (state.selectedFiles || []).some(id => !selected.has(id))
+      || (state.selected?.type === 'folder' && !incoming.some(file => file.path === state.selected.path));
+    if (selectionChanged) clearFileSelection();
+    if (changed || selectionChanged) renderMain();
+    if (selectionChanged) renderDeck();
+    return true;
+  } catch (err) {
+    if (err.name === 'AbortError') return true;
+    // A generation change between pages invalidates the whole candidate, not
+    // the displayed list. Retry a complete snapshot after the next quiet gap.
+    if (/(folder|search) changed/i.test(err.message || '')) return false;
+    throw err;
+  } finally {
+    if (request === libraryPageRequest) libraryLoadController = null;
+  }
+}
+
 async function loadLibrary(reset = true) {
   if (!live) return;
   const username = state.username, currentPath = state.currentPath, request = ++libraryPageRequest;
@@ -1762,7 +1811,6 @@ async function syncLibraryFromChange() {
     return;
   }
   librarySyncRunning = true;
-  const scroll = viewScrollTop();
   try {
     if (state.view === 'photos') {
       const navigationRequest=photoPageRequest,username=state.username;
@@ -1785,20 +1833,13 @@ async function syncLibraryFromChange() {
       if ($('#modal').classList.contains('photo-viewer')) renderPhotoViewer();
       return;
     }
-    await loadLibrary();
-    state.selectedFiles = (state.selectedFiles || []).filter(id => files.some(file => file.id === id) || state.photoSelectedItems?.has(id));
-    if (state.selected?.type === 'file' && !files.some(f => f.id === state.selected.id)) state.selected = state.selectedFiles.length ? {type: 'file', id: state.selectedFiles[0]} : null;
-    if (state.view === 'library' || state.view === 'photos') {
-      renderMain();
-      renderDeck();
-      requestAnimationFrame(() => viewScrollTo({top: scroll, behavior: 'auto'}));
-    }
+    if (state.view === 'library' && !await refreshLibraryInBackground()) librarySyncAgain = true;
   } catch {}
   finally {
     librarySyncRunning = false;
     if (librarySyncAgain) {
       librarySyncAgain = false;
-      syncLibraryFromChange();
+      scheduleUploadRefresh();
     }
   }
 }
@@ -1881,7 +1922,7 @@ function startLibraryEvents() {
       if ($('#photo-grab-form') || $('#photo-album-members-form') || $('#modal').querySelector('.duplicate-group')) $('#modal').close();
       if ($('#modal').classList.contains('photo-viewer')) closePhotoViewer();
     }
-    syncLibraryFromChange();
+    scheduleUploadRefresh();
   });
 }
 
@@ -2418,6 +2459,7 @@ document.addEventListener('input', e => {
     renderMain();
     clearTimeout(librarySearchTimer);
     librarySearchTimer = setTimeout(() => {
+      librarySearchTimer = 0;
       if (live && state.unlocked && state.view === 'library') loadLibrary(true).catch(err => toast(err.message));
     }, 300);
     const search = document.querySelector('[data-library-search]');

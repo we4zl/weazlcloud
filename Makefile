@@ -34,6 +34,7 @@ lines: desk-assets
 	bash scripts/check-go-lines.sh
 
 js-check:
+	node --input-type=module --check < mockup-ui/library-dom.js
 	node --input-type=module --check < mockup-ui/app.js
 	node --input-type=module --check < mockup-ui/data.js
 	node --input-type=module --check < mockup-ui/engine.js

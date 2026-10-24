@@ -1,4 +1,5 @@
 import {renderPhotoContent,reconcilePhotoRows,photoTileIdentity} from './photo-dom.js';
+import {renderLibraryContent} from './library-dom.js';
 import {sizePhotoPane,photoGeometry,photoPane,photoViewport,viewScrollTop} from './photo-scroll.js';
 import {timelineMarkup} from './photo-timeline.js';
 import {files, filePath, filesInFolder, folderLabel, folderName, takeouts, state, selectedName, liveCapsules, fileMatches, matchQuery, escapeHTML as esc} from './data.js';
@@ -132,7 +133,7 @@ function gridFileCard(f, fullPath = false, photo = false) {
   const opener = media
     ? `<div class="grid-open grid-media${audio ? ' grid-audio' : ''}" ${audio ? `data-grid-music="${esc(path)}"` : ''} data-select-file="${f.id}" role="button" tabindex="0" aria-label="Open ${esc(f.title)}">${audio ? '<div class="grid-music-art"><span aria-hidden="true">♫</span><img data-music-cover alt="Embedded album cover" hidden></div>' : ''}${preview}</div>`
     : `<button class="grid-open" data-select-file="${f.id}" aria-label="Open ${esc(f.title)}">${preview}</button>`;
-  return `<div class="library-card${hit}" data-ctx-file="${f.id}" data-drag-file="${esc(path)}" draggable="true">
+  return `<div class="library-card${hit}" data-ctx-file="${f.id}" data-library-revision="${esc(f.revision || f.mtime || '')}" data-drag-file="${esc(path)}" draggable="true">
     ${opener}
     ${audio ? '<div class="grid-music-details" data-music-details hidden></div>' : ''}
     <div class="grid-card-info"><span class="kind ${kindClass(f.kind)}">${esc(f.kind)}</span><strong title="${esc(f.title)}">${esc(f.title)}</strong>${fullPath ? `<small>${esc(path)}</small>` : ''}<span class="grid-meta">${esc(f.size)} · ${esc(photo ? (f.captureTime ? modifiedLabel(f.captureTime) : 'Date unknown') : modifiedLabel(f.mtime))}</span></div>
@@ -504,13 +505,14 @@ let preservedMediaPlayback = null;
 function preserveMediaPlayback() {
   const media = document.querySelector('.grid-media-player[data-media-path]');
   if (!media || !Number.isFinite(media.currentTime) || media.currentTime === 0) return;
-  preservedMediaPlayback = {path: media.dataset.mediaPath, time: media.currentTime, paused: media.paused};
+  preservedMediaPlayback = {node: media, path: media.dataset.mediaPath, time: media.currentTime, paused: media.paused};
 }
 
 function restoreMediaPlayback() {
   const saved = preservedMediaPlayback;
   preservedMediaPlayback = null;
   if (!saved) return;
+  if (saved.node.isConnected) return;
   const media = [...document.querySelectorAll('.grid-media-player[data-media-path]')]
     .find(el => el.dataset.mediaPath === saved.path);
   if (!media) return;
@@ -533,7 +535,10 @@ export function renderMain() {
   const pages = {home, library, photos, send, capsules, places, admin, kit, takeout, check, destroy, trash};
   const html = (pages[state.view] || home)();
   if(state.view==='photos')renderPhotoContent(content,html,JSON.stringify([state.username,state.unlocked,state.photosMode,state.photosAlbum,state.photoDate,state.photoQuery,state.photoCamera,state.photoSearchType,state.photoFrom,state.photoTo,state.photoOutsideAlbums]));
-  else {content.photoScope=null;content.innerHTML=html;}
+  else if(state.view==='library'){
+    content.photoScope=null;
+    renderLibraryContent(content,html,JSON.stringify([state.username,state.unlocked,state.currentPath,state.libraryView,state.librarySearch,state.libraryScope,state.libraryType,state.libraryDate,state.librarySize,state.librarySort,state.librarySortDir]));
+  } else {content.photoScope=null;content.libraryScope=null;content.innerHTML=html;}
  if(state.view==='photos'){
   sizePhotoPane();
   // CSP rejects HTML style attributes. Apply virtual spacers through CSSOM
