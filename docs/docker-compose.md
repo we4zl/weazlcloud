@@ -92,3 +92,46 @@ existing preparation pause state. Do not use `down --volumes` on retained data.
 See [release and rollback](release.md) and the
 [Photos recovery runbook](photos-release-runbook.md) for verification and catalog
 compatibility. Changing a mount or backend is a separate migration.
+
+## Upload staging permissions
+
+A batch failing with `mkdir /data/uploads/<owner>/<id>.part: permission denied`
+means the service cannot create staging beneath that owner's upload directory.
+Check the container's configured user and actual `/data` bind mount first:
+
+```sh
+docker inspect weazlcloud --format '{{.Config.User}} {{json .Mounts}}'
+```
+
+Use your actual container name. The shipped image runs as UID/GID `7272:7272`;
+verify that identity for your deployment. A bind mount hides image-directory
+ownership, and correcting `/data/uploads` alone does not repair a previously
+created root-owned owner directory. On the host, inspect every ancestor and the
+specific directory named in the error:
+
+```sh
+# Replace these placeholders with the inspected host mount and failing owner ID.
+upload_owner_dir='/actual/data/mount/uploads/OWNER_ID'
+namei -l "$upload_owner_dir"
+stat -c '%u:%g %a %n' "$upload_owner_dir"
+```
+
+If that specific directory is incorrectly root-owned, restore its service owner
+and private permissions. Use the verified UID/GID if they differ:
+
+```sh
+sudo chown 7272:7272 "$upload_owner_dir"
+sudo chmod 0700 "$upload_owner_dir"
+```
+
+Inspect existing staging children separately if errors name them; repair only
+incorrect ownership. Do not recursively change the entire data mount or make it
+world-writable. Verify a temporary create/write/read/delete within the affected
+directory as the container's service user, then retry the upload. An ownership
+repair takes effect immediately and needs no service restart. Preserve staging
+and committed files; deleting them is not a permissions fix.
+
+For client offsets, checksums, and retries, see the
+[upload API](api-reference.md#browser-resumable-uploads). The
+[October 24 incident and UI fix](library-upload-refresh-2026-10-24.md) records
+validation of upload-time browsing and the production rollout.

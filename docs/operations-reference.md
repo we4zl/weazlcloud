@@ -6,6 +6,19 @@ Detailed configuration, API notes, and feature limits. Start with the
 A household library node. Your files on metal you own. Send recipient a grab link.
 Mount the same library in Files over `davs://`. Accounts and vaults stay on your own host.
 
+## Upload troubleshooting
+
+For HTTP contracts and client examples, use the [complete API reference](api-reference.md).
+If a batch fails with `mkdir /data/uploads/<owner>/<id>.part: permission denied`,
+follow the [staging ownership procedure](docker-compose.md#upload-staging-permissions).
+A writable top-level mount does not prove existing owner directories are writable.
+
+During uploads, Library updates coalesce notifications and reconcile existing rows.
+Browsing, search, focus, scroll, and loaded pagination remain available. The
+[October 24 fix report](library-upload-refresh-2026-10-24.md) records the regression
+checks and deployment. Restarting the service interrupts active requests; schedule
+upgrades after the user's current batch completes.
+
 ## Photos and music in the library
 
 See the [October 2 Photos selection release](release-2026-10-02.md) for

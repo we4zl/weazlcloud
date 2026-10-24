@@ -1,6 +1,9 @@
 # Photos API v1
 
-Updated October 2, 2026. The versioned routes are implemented locally; the
+See the [complete API reference](api-reference.md) for the endpoint inventory,
+authentication differences, maintenance routes, and all other listeners.
+
+Reviewed October 24, 2026. The versioned routes are implemented locally; the
 browser/container release gates are tracked in
 [plan_modal.md](../plan_modal.md). This is a web/API foundation, not an iOS app.
 

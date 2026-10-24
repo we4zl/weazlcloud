@@ -9,6 +9,16 @@ rig, without the cloud cartel. Mount the library natively via `davs://`. Keep
 your accounts, encrypted vaults, and data exactly where they belong: in your
 house. Bare metal, your own VM, or Docker—the node is yours.
 
+## Documentation
+
+The [complete API reference](docs/api-reference.md) covers authentication, every
+HTTP surface, request and response formats, upload workflows, errors, limits,
+public grab delivery, and WebDAV. Domain guides provide additional details:
+
+- [Native mobile API](docs/mobile-api.md) and [Photos API](docs/photo-api.md)
+- [Weazldocs device API](docs/documents-api.md)
+- [Operations reference](docs/operations-reference.md) and [Docker deployment](docs/docker-compose.md)
+
 ## The Deck (Visuals & Acoustics)
 
 Photos aren't just dumped in a directory. WeazlCloud builds a continuous
@@ -34,6 +44,9 @@ New uploads feed the same background indexing and preview pipeline as imports.
 
 Previews are generated in the background and cached encrypted.
 New uploads preserve already displayed thumbnails instead of clearing the grid.
+Library refreshes coalesce upload notifications and preserve loaded pages, scroll,
+keyboard focus, and search while transfers continue. See the
+[upload refresh fix and validation](docs/library-upload-refresh-2026-10-24.md).
 QuickTime `.mov` videos, including H.264/HEVC clips with a trailing movie index,
 get poster thumbnails up to 256 MiB. Raster previews support up to 128 MP and
 128 MiB; native formats retain a 64 MiB source bound. Each job must fit the

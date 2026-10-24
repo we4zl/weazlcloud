@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: WeazlCloud native mobile API
-  version: 1-working-tree-2026-10-02
+  version: 1-reviewed-2026-10-24
   description: Inspected local implementation, not a published release or full verification. x-required-scopes
     carries HTTP bearer resource scopes; security arrays are auth alternatives. paths contains implemented
     routes only. x-unimplemented-route-inventory records scope-only and pending patterns without generating
@@ -10,6 +10,168 @@ security:
 - DeviceBearer: []
 - OwnerSession: []
 paths:
+  /api/v1/documents:
+    get:
+      summary: List a Weazldocs folder (at most 200 entries)
+      description: Device bearer only; owner vault must be unlocked. See documents-api.md for immutable
+        retries, path validation and errors.
+      security:
+      - DeviceBearer: []
+      x-required-scopes:
+      - documents:read
+      parameters:
+      - $ref: '#/components/parameters/MobileContractHeader'
+      - $ref: '#/components/parameters/MobileContractQuery'
+      - in: query
+        name: path
+        schema: &documents001
+          type: string
+        description: Clean case-sensitive path within Weazldocs; listing defaults to Weazldocs.
+        required: false
+      - in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - files
+                - next_cursor
+                - generation
+                properties:
+                  files:
+                    type: array
+                    items: &documents002
+                      type: object
+                      required:
+                      - path
+                      - size
+                      - mtime
+                      properties:
+                        path:
+                          type: string
+                        folder:
+                          type: boolean
+                          description: Omitted for regular files.
+                        size:
+                          type: integer
+                          format: int64
+                        mtime:
+                          type: string
+                          format: date-time
+                  next_cursor:
+                    type: string
+                  generation:
+                    type: integer
+        default:
+          description: Native JSON error with error and code fields; see documents-api.md.
+  /api/v1/documents/folder:
+    post:
+      summary: Create a Weazldocs folder and missing parents atomically
+      description: Device bearer only; owner vault must be unlocked. See documents-api.md for immutable
+        retries, path validation and errors.
+      security:
+      - DeviceBearer: []
+      x-required-scopes:
+      - documents:write
+      parameters:
+      - $ref: '#/components/parameters/MobileContractHeader'
+      - $ref: '#/components/parameters/MobileContractQuery'
+      - in: query
+        name: path
+        schema: *documents001
+        description: Clean case-sensitive path within Weazldocs; listing defaults to Weazldocs.
+        required: true
+      - $ref: '#/components/parameters/MutationHeader'
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  path:
+                    type: string
+        default:
+          description: Native JSON error with error and code fields; see documents-api.md.
+  /api/v1/documents/content:
+    get:
+      summary: Download immutable document content
+      description: Device bearer only; owner vault must be unlocked. See documents-api.md for immutable
+        retries, path validation and errors.
+      security:
+      - DeviceBearer: []
+      x-required-scopes:
+      - documents:read
+      parameters:
+      - $ref: '#/components/parameters/MobileContractHeader'
+      - $ref: '#/components/parameters/MobileContractQuery'
+      - in: query
+        name: path
+        schema: *documents001
+        description: Clean case-sensitive path within Weazldocs; listing defaults to Weazldocs.
+        required: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        default:
+          description: Native JSON error with error and code fields; see documents-api.md.
+    put:
+      summary: Publish an immutable document and missing parents
+      description: Device bearer only; owner vault must be unlocked. See documents-api.md for immutable
+        retries, path validation and errors.
+      security:
+      - DeviceBearer: []
+      x-required-scopes:
+      - documents:write
+      parameters:
+      - $ref: '#/components/parameters/MobileContractHeader'
+      - $ref: '#/components/parameters/MobileContractQuery'
+      - in: query
+        name: path
+        schema: *documents001
+        description: Clean case-sensitive path within Weazldocs; listing defaults to Weazldocs.
+        required: true
+      - $ref: '#/components/parameters/MutationHeader'
+      - in: header
+        name: Content-Length
+        required: true
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 268435456
+      - in: header
+        name: X-Weazl-Content-SHA256
+        required: true
+        schema:
+          type: string
+          pattern: ^[a-fA-F0-9]{64}$
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema: *documents002
+        default:
+          description: Native JSON error with error and code fields; see documents-api.md.
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
   /api/v1/photos/uploads/status:
     post:
       summary: Read up to 100 parts-v1 photo upload statuses in one request

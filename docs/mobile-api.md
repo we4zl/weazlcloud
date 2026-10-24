@@ -1,8 +1,11 @@
 # Native mobile API — implementation contract
 
+For all listeners and browser routes, see the [complete API reference](api-reference.md).
+Scoped document clients use the [Weazldocs API](documents-api.md).
+
 Photo upload preflight: [SHA-256 and size lookup](photo-content-lookup.md).
 
-Updated October 9, 2026. This documents the implemented mobile contract and the
+Reviewed October 24, 2026. This documents the implemented mobile contract and the
 concurrent finalization update. See [validation](mobile-server-validation-2026-10-02.md) and
 [decisions/migration](mobile-server-decisions.md). The machine-readable companion
 is [mobile-api.yaml](mobile-api.yaml); its paths include implemented handlers, with
@@ -203,9 +206,9 @@ owners. Empty `.queue`/`.live` marker files contain opaque job IDs, not private
 payloads; the index uses schema-1 recovery (`.indexed-v1`). Each Pending call reads
 at most 100 queue markers plus 100 incremental recovery entries. It does not scan
 all historical terminal receipts every second.
-A fair owner round processes at most one job per owner and
-`min(2,max(1,GOMAXPROCS/2))` globally, under
-owner leases and vault cancellation. A 250 ms authorization watcher cancels long
+A fair owner round admits jobs to the persistent finalization pool under the
+advertised global and per-owner limits described above, owner leases, and vault
+cancellation. A 250 ms authorization watcher cancels long
 work; the final atomic device-grant guard is the publication barrier. The worker schedules inactive-staging sweeps every 15 minutes;
 each Sweep reads at most 100 live markers plus 100 incremental recovery entries. These mechanisms are inspected implementation,
 with measured local resource behavior and verification scope recorded in the release ledger.
@@ -482,6 +485,11 @@ are grants only, without matching operations in the new dispatchers.
 
 | Method | Route pattern | Required explicit scopes | Legacy |
 | --- | --- | --- | --- |
+| `GET` | `/api/v1/documents` | `documents:read` | no |
+| `POST` | `/api/v1/documents/folder` | `documents:write` | no |
+| `PUT` | `/api/v1/documents/content` | `documents:write` | no |
+| `GET` | `/api/v1/documents/content` | `documents:read` | no |
+| `POST` | `/api/v1/photos/lookup` | `photos:read` | yes |
 | `GET` | `/api/v1/photos` | `photos:read` | yes |
 | `GET` | `/api/v1/photos/capabilities` | `photos:read` | yes |
 | `GET` | `/api/v1/photos/albums` | `photos:read` | yes |
@@ -501,10 +509,10 @@ are grants only, without matching operations in the new dispatchers.
 | `GET` | `/api/v1/photos/trash` | `photos:read` | yes |
 | `POST` | `/api/v1/photos/trash/restore` | `photos:write` | yes |
 | `POST` | `/api/v1/photos/selections` | `photos:read` | yes |
-| `POST` | `/api/v1/photos/selection-actions` | `photos:read` + `photos:write` | yes |
+| `POST` | `/api/v1/photos/selection-actions` | `photos:read`, `photos:write` | yes |
 | `GET` | `/api/v1/photos/archives` | `photos:read` | yes |
 | `DELETE` | `/api/v1/photos/archives` | `photos:write` | yes |
-| `POST` | `/api/v1/photos/grabs` | `photos:read` + `grabs:write` | yes |
+| `POST` | `/api/v1/photos/grabs` | `photos:read`, `grabs:write` | yes |
 | `GET` | `/api/v1/photos/duplicates` | `photos:v1` | yes |
 | `POST` | `/api/v1/photos/duplicates` | `photos:v1` | yes |
 | `GET` | `/api/v1/photos/metadata-jobs` | `photos:v1` | yes |
@@ -513,11 +521,12 @@ are grants only, without matching operations in the new dispatchers.
 | `POST` | `/api/v1/photos/collections` | `photos:write` | no |
 | `PATCH` | `/api/v1/photos/collections/*` | `photos:write` | no |
 | `DELETE` | `/api/v1/photos/collections/*` | `photos:write` | no |
-| `POST` | `/api/v1/photos/source-collections` | `photos:write` | no |
-| `POST` | `/api/v1/photos/source-collections/lookup` | `photos:read` | no |
 | `POST` | `/api/v1/photos/source-collections/recover` | `photos:write` | no |
+| `POST` | `/api/v1/photos/source-collections/lookup` | `photos:read` | no |
+| `POST` | `/api/v1/photos/source-collections` | `photos:write` | no |
 | `POST` | `/api/v1/photos/source-memberships` | `photos:write` | no |
 | `POST` | `/api/v1/photos/uploads` | `photos:write` | yes |
+| `POST` | `/api/v1/photos/uploads/status` | `photos:write` | no |
 | `GET` | `/api/v1/photos/uploads/*` | `photos:write` | yes |
 | `GET` | `/api/v1/photos/uploads/*/parts` | `photos:write` | no |
 | `POST` | `/api/v1/photos/uploads/*/retry` | `photos:write` | no |
@@ -530,18 +539,18 @@ are grants only, without matching operations in the new dispatchers.
 | `GET` | `/api/v1/files/*/content` | `files:read` | no |
 | `HEAD` | `/api/v1/files/*/content` | `files:read` | no |
 | `POST` | `/api/v1/files/sync/checkpoint` | `files:read` | no |
-| `GET` | `/api/v1/backups/sources` | `backup:write` + `files:write` | no |
-| `POST` | `/api/v1/backups/sources` | `backup:write` + `files:write` | no |
-| `PATCH` | `/api/v1/backups/sources/*` | `backup:write` + `files:write` | no |
-| `POST` | `/api/v1/backups/uploads` | `backup:write` + `files:write` | no |
-| `GET` | `/api/v1/backups/uploads/*` | `backup:write` + `files:write` | no |
-| `GET` | `/api/v1/backups/uploads/*/parts` | `backup:write` + `files:write` | no |
-| `POST` | `/api/v1/backups/uploads/*/retry` | `backup:write` + `files:write` | no |
-| `PUT` | `/api/v1/backups/uploads/*/components/*/parts/*` | `backup:write` + `files:write` | no |
-| `DELETE` | `/api/v1/backups/uploads/*` | `backup:write` + `files:write` | no |
-| `POST` | `/api/v1/backups/uploads/*/finalize` | `backup:write` + `files:write` | no |
-| `PATCH` | `/api/v1/backups/uploads/*` | `backup:write` + `files:write` | no |
-| `PUT` | `/api/v1/backups/uploads/*/parts/*` | `backup:write` + `files:write` | no |
+| `GET` | `/api/v1/backups/sources` | `backup:write`, `files:write` | no |
+| `POST` | `/api/v1/backups/sources` | `backup:write`, `files:write` | no |
+| `PATCH` | `/api/v1/backups/sources/*` | `backup:write`, `files:write` | no |
+| `POST` | `/api/v1/backups/uploads` | `backup:write`, `files:write` | no |
+| `GET` | `/api/v1/backups/uploads/*` | `backup:write`, `files:write` | no |
+| `GET` | `/api/v1/backups/uploads/*/parts` | `backup:write`, `files:write` | no |
+| `POST` | `/api/v1/backups/uploads/*/retry` | `backup:write`, `files:write` | no |
+| `PUT` | `/api/v1/backups/uploads/*/components/*/parts/*` | `backup:write`, `files:write` | no |
+| `DELETE` | `/api/v1/backups/uploads/*` | `backup:write`, `files:write` | no |
+| `POST` | `/api/v1/backups/uploads/*/finalize` | `backup:write`, `files:write` | no |
+| `PATCH` | `/api/v1/backups/uploads/*` | `backup:write`, `files:write` | no |
+| `PUT` | `/api/v1/backups/uploads/*/parts/*` | `backup:write`, `files:write` | no |
 | `GET` | `/api/library` | `files:read` | no |
 | `GET` | `/api/library/page` | `files:read` | no |
 | `GET` | `/api/library/search/page` | `files:read` | no |
@@ -553,7 +562,7 @@ are grants only, without matching operations in the new dispatchers.
 | `DELETE` | `/api/library` | `files:write` | no |
 | `POST` | `/api/library/folder` | `files:write` | no |
 | `POST` | `/api/library/rename` | `files:write` | no |
-| `POST` | `/api/library/copy` | `files:read` + `files:write` | no |
+| `POST` | `/api/library/copy` | `files:read`, `files:write` | no |
 | `GET` | `/api/trash` | `files:read` | no |
 | `DELETE` | `/api/trash` | `files:write` | no |
 | `POST` | `/api/trash/restore` | `files:write` | no |
@@ -562,7 +571,7 @@ are grants only, without matching operations in the new dispatchers.
 | `DELETE` | `/api/library/archive` | `files:read` | no |
 | `GET` | `/api/capsules` | `grabs:read` | no |
 | `GET` | `/api/v1/grabs/operations` | `grabs:read` | no |
-| `POST` | `/api/capsules` | `grabs:write` + `files:read` | no |
+| `POST` | `/api/capsules` | `grabs:write`, `files:read` | no |
 | `DELETE` | `/api/capsules` | `grabs:write` | no |
 | `GET` | `/api/quota` | `storage:read` | no |
 
