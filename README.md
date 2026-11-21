@@ -253,3 +253,7 @@ Open [http://127.0.0.1:3001](http://127.0.0.1:3001), loopback only. Preview a
 recipient's Dead Drop at
 [http://127.0.0.1:3001/grab.html](http://127.0.0.1:3001/grab.html).
 The static preview does not connect to a live vault.
+
+## WEAZL and WE4ZL branding
+
+Forking or reusing code does not grant permission to brand or market your own product with the WEAZL™ or WE4ZL™ wordmarks or the weazl head logo. See the [trademark and artwork notice](TRADEMARKS.md).
